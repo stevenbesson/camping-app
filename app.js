@@ -14,32 +14,66 @@ class CampingApp {
 
     // ========== STORAGE - Firebase ==========
     loadCampsFromFirebase() {
-        // Écouter les changements en temps réel
         onValue(this.firebaseRef, (snapshot) => {
             if (snapshot.exists()) {
                 const data = snapshot.val();
                 this.camps = Object.values(data);
-                // Normaliser les données: s'assurer que l'inventaire a assignedTo et que expenses existe
+                // Normaliser toutes les données Firebase (les arrays peuvent revenir comme objets)
                 this.camps.forEach(camp => {
+                    // Normaliser participants
                     if (!camp.participants) {
                         camp.participants = [];
+                    } else if (!Array.isArray(camp.participants)) {
+                        camp.participants = Object.values(camp.participants);
                     }
-                    if (camp.inventory && Array.isArray(camp.inventory)) {
-                        camp.inventory.forEach(item => {
-                            if (!item.assignedTo) {
-                                item.assignedTo = [];
-                            }
-                        });
-                    }
+
+                    // Normaliser expenses
                     if (!camp.expenses) {
                         camp.expenses = [];
+                    } else if (!Array.isArray(camp.expenses)) {
+                        camp.expenses = Object.values(camp.expenses);
+                    }
+
+                    // Normaliser cars
+                    if (!camp.cars) {
+                        camp.cars = [];
+                    } else if (!Array.isArray(camp.cars)) {
+                        camp.cars = Object.values(camp.cars);
+                    }
+
+                    // Normaliser inventory
+                    if (!camp.inventory) {
+                        camp.inventory = [];
+                    } else if (!Array.isArray(camp.inventory)) {
+                        camp.inventory = Object.values(camp.inventory);
+                    }
+
+                    // Normaliser assignedTo dans chaque item d'inventaire
+                    camp.inventory.forEach(item => {
+                        if (!item.assignedTo) {
+                            item.assignedTo = [];
+                        } else if (!Array.isArray(item.assignedTo)) {
+                            item.assignedTo = Object.values(item.assignedTo);
+                        }
+                    });
+
+                    // Normaliser food et equipment
+                    if (!camp.food) {
+                        camp.food = [];
+                    } else if (!Array.isArray(camp.food)) {
+                        camp.food = Object.values(camp.food);
+                    }
+
+                    if (!camp.equipment) {
+                        camp.equipment = [];
+                    } else if (!Array.isArray(camp.equipment)) {
+                        camp.equipment = Object.values(camp.equipment);
                     }
                 });
             } else {
                 this.camps = [];
             }
             this.renderCampsList();
-            // Si un camp est actuellement sélectionné, le rafraîchir
             if (this.currentCampId) {
                 this.selectCamp(this.currentCampId);
             }
@@ -356,9 +390,7 @@ class CampingApp {
         document.getElementById('emptyState').classList.add('hidden');
         document.getElementById('mainContent').classList.remove('hidden');
 
-        let needsSave = false;
-
-        // Initialiser l'inventaire s'il n'existe pas
+        // Initialiser l'inventaire seulement s'il n'existe pas encore (première création)
         if (!camp.inventory || camp.inventory.length === 0) {
             camp.inventory = this.getFullInventoryList().map((item, idx) => ({
                 id: 'inv_' + idx,
@@ -366,36 +398,6 @@ class CampingApp {
                 assignedTo: [],
                 status: 'unassigned'
             }));
-            needsSave = true;
-        }
-
-        // Initialiser les autres propriétés si elles n'existent pas
-        if (!camp.cars) {
-            camp.cars = [];
-            needsSave = true;
-        }
-
-        if (!camp.expenses) {
-            camp.expenses = [];
-            needsSave = true;
-        }
-
-        if (!camp.participants) {
-            camp.participants = [];
-            needsSave = true;
-        }
-
-        if (!camp.food) {
-            camp.food = [];
-            needsSave = true;
-        }
-
-        if (!camp.equipment) {
-            camp.equipment = [];
-            needsSave = true;
-        }
-
-        if (needsSave) {
             this.saveCamp(campId);
         }
 
