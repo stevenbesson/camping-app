@@ -19,7 +19,7 @@ class CampingApp {
             if (snapshot.exists()) {
                 const data = snapshot.val();
                 this.camps = Object.values(data);
-                // Normaliser les données: s'assurer que l'inventaire a assignedTo
+                // Normaliser les données: s'assurer que l'inventaire a assignedTo et que expenses existe
                 this.camps.forEach(camp => {
                     if (camp.inventory && Array.isArray(camp.inventory)) {
                         camp.inventory.forEach(item => {
@@ -27,6 +27,9 @@ class CampingApp {
                                 item.assignedTo = [];
                             }
                         });
+                    }
+                    if (!camp.expenses) {
+                        camp.expenses = [];
                     }
                 });
             } else {
@@ -114,6 +117,14 @@ class CampingApp {
         document.getElementById('expenseAmount').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.addExpense();
         });
+        const selectAllBtn = document.getElementById('selectAllParticipantsBtn');
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', () => {
+                document.querySelectorAll('.expense-participant-checkbox').forEach(cb => {
+                    cb.checked = true;
+                });
+            });
+        }
 
         // Equipment
         document.getElementById('customEquipmentBtn').addEventListener('click', () => {
@@ -355,8 +366,9 @@ class CampingApp {
         this.updateEquipmentChecklists();
         this.updateFoodChecklists();
         this.renderParticipants();
-        this.renderExpenses();
         this.updateExpensePaidByOptions();
+        this.renderExpenseParticipants();
+        this.renderExpenses();
         this.updateCarDriverOptions();
         this.renderCars();
     }
@@ -759,6 +771,28 @@ class CampingApp {
         select.value = currentValue;
     }
 
+    renderExpenseParticipants() {
+        const camp = this.getCurrentCamp();
+        if (!camp) return;
+
+        const container = document.getElementById('expenseParticipantsCheckboxes');
+        if (!container) return;
+
+        container.innerHTML = '';
+        camp.participants.forEach(p => {
+            const label = document.createElement('label');
+            label.style.display = 'flex';
+            label.style.alignItems = 'center';
+            label.style.gap = '0.5rem';
+            label.style.cursor = 'pointer';
+            label.innerHTML = `
+                <input type="checkbox" class="expense-participant-checkbox" value="${p.id}" checked>
+                <span>${p.name}</span>
+            `;
+            container.appendChild(label);
+        });
+    }
+
     addExpense() {
         const camp = this.getCurrentCamp();
         if (!camp) return;
@@ -767,8 +801,16 @@ class CampingApp {
         const amount = parseFloat(document.getElementById('expenseAmount').value);
         const paidById = document.getElementById('expensePaidBy').value;
 
+        const checkboxes = document.querySelectorAll('.expense-participant-checkbox:checked');
+        const includedParticipantIds = Array.from(checkboxes).map(cb => cb.value);
+
         if (!description || !amount || !paidById) {
             alert('Veuillez remplir tous les champs');
+            return;
+        }
+
+        if (includedParticipantIds.length === 0) {
+            alert('Veuillez sélectionner au moins une personne pour cette dépense');
             return;
         }
 
@@ -777,6 +819,7 @@ class CampingApp {
             description,
             amount,
             paidById,
+            includedParticipantIds,
             date: new Date().toISOString()
         });
 
@@ -784,6 +827,7 @@ class CampingApp {
         document.getElementById('expenseDescription').value = '';
         document.getElementById('expenseAmount').value = '';
         document.getElementById('expensePaidBy').value = '';
+        this.renderExpenseParticipants();
         this.renderExpenses();
     }
 
@@ -794,23 +838,21 @@ class CampingApp {
         const list = document.getElementById('expensesList');
         list.innerHTML = '';
 
-        const totalByPerson = {};
         camp.expenses.forEach(expense => {
             const payer = camp.participants.find(p => p.id === expense.paidById);
-            if (!totalByPerson[payer.name]) {
-                totalByPerson[payer.name] = 0;
-            }
-            totalByPerson[payer.name] += expense.amount;
-        });
+            const includedParticipants = camp.participants.filter(p =>
+                (expense.includedParticipantIds && expense.includedParticipantIds.includes(p.id)) ||
+                (!expense.includedParticipantIds)
+            );
 
-        camp.expenses.forEach(expense => {
-            const payer = camp.participants.find(p => p.id === expense.paidById);
             const div = document.createElement('div');
             div.className = 'expense-item';
+            const participantNames = includedParticipants.map(p => p.name).join(', ');
             div.innerHTML = `
                 <div class="expense-details">
                     <h5>${expense.description}</h5>
                     <p class="expense-by">Payé par <strong>${payer.name}</strong></p>
+                    <p style="font-size: 0.85rem; color: #7f8c8d; margin: 0.25rem 0 0 0;">Pour: ${participantNames}</p>
                 </div>
                 <div style="display: flex; gap: 1rem; align-items: center;">
                     <span class="expense-amount">${expense.amount.toFixed(2)}€</span>
@@ -846,8 +888,13 @@ class CampingApp {
 
         camp.expenses.forEach(expense => {
             totalSpent[expense.paidById] += expense.amount;
-            camp.participants.forEach(p => {
-                totalByPerson[p.id] += expense.amount / camp.participants.length;
+            const includedParticipants = camp.participants.filter(p =>
+                (expense.includedParticipantIds && expense.includedParticipantIds.includes(p.id)) ||
+                (!expense.includedParticipantIds)
+            );
+            const splitAmount = expense.amount / includedParticipants.length;
+            includedParticipants.forEach(p => {
+                totalByPerson[p.id] += splitAmount;
             });
         });
 
@@ -1445,6 +1492,11 @@ class CampingApp {
             btn.classList.remove('active');
         });
         document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+        if (tabName === 'expenses') {
+            this.updateExpensePaidByOptions();
+            this.renderExpenseParticipants();
+        }
     }
 }
 
