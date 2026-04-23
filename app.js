@@ -33,6 +33,12 @@ class CampingApp {
                     } else if (!Array.isArray(camp.expenses)) {
                         camp.expenses = Object.values(camp.expenses);
                     }
+                    // Normaliser includedParticipantIds dans chaque dépense
+                    camp.expenses.forEach(exp => {
+                        if (exp.includedParticipantIds && !Array.isArray(exp.includedParticipantIds)) {
+                            exp.includedParticipantIds = Object.values(exp.includedParticipantIds);
+                        }
+                    });
 
                     // Normaliser cars
                     if (!camp.cars) {
@@ -40,6 +46,14 @@ class CampingApp {
                     } else if (!Array.isArray(camp.cars)) {
                         camp.cars = Object.values(camp.cars);
                     }
+                    // Normaliser items dans chaque voiture
+                    camp.cars.forEach(car => {
+                        if (!car.items) {
+                            car.items = [];
+                        } else if (!Array.isArray(car.items)) {
+                            car.items = Object.values(car.items);
+                        }
+                    });
 
                     // Normaliser inventory
                     if (!camp.inventory) {
@@ -180,9 +194,6 @@ class CampingApp {
         document.getElementById('carCapacity').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.addCar();
         });
-
-        // Route
-        document.getElementById('calculateRouteBtn').addEventListener('click', () => this.calculateRoute());
 
         // Inventory
         document.getElementById('copyCodeBtn')?.addEventListener('click', () => this.copyCampCode());
@@ -774,13 +785,34 @@ class CampingApp {
 
         if (confirm('Êtes-vous sûr de supprimer ce participant?')) {
             camp.participants = camp.participants.filter(p => p.id !== participantId);
+
+            // Nettoyer les références dans l'inventaire
+            camp.inventory.forEach(item => {
+                item.assignedTo = item.assignedTo.filter(id => id !== participantId);
+                item.status = item.assignedTo.length > 0 ? 'assigned' : 'unassigned';
+            });
+
+            // Supprimer les voitures conduites par ce participant
+            camp.cars = camp.cars.filter(c => c.driverId !== participantId);
+
+            // Supprimer les dépenses payées par ce participant et filtrer des listes incluses
+            camp.expenses = camp.expenses.filter(e => e.paidById !== participantId);
+            camp.expenses.forEach(e => {
+                if (Array.isArray(e.includedParticipantIds)) {
+                    e.includedParticipantIds = e.includedParticipantIds.filter(id => id !== participantId);
+                }
+            });
+
             this.saveCamp(camp.id);
             this.renderParticipants();
             this.updateEquipmentChecklists();
             this.updateFoodChecklists();
             this.updateExpensePaidByOptions();
+            this.renderExpenseParticipants();
             this.renderExpenses();
             this.updateCarDriverOptions();
+            this.renderCars();
+            this.renderInventoryList();
         }
     }
 
@@ -880,9 +912,12 @@ class CampingApp {
 
         camp.expenses.forEach(expense => {
             const payer = camp.participants.find(p => p.id === expense.paidById);
+            const payerName = payer ? payer.name : 'Inconnu';
+            const includedIds = Array.isArray(expense.includedParticipantIds)
+                ? expense.includedParticipantIds
+                : (expense.includedParticipantIds ? Object.values(expense.includedParticipantIds) : null);
             const includedParticipants = camp.participants.filter(p =>
-                (expense.includedParticipantIds && expense.includedParticipantIds.includes(p.id)) ||
-                (!expense.includedParticipantIds)
+                (includedIds && includedIds.includes(p.id)) || (!includedIds)
             );
 
             const div = document.createElement('div');
@@ -891,7 +926,7 @@ class CampingApp {
             div.innerHTML = `
                 <div class="expense-details">
                     <h5>${expense.description}</h5>
-                    <p class="expense-by">Payé par <strong>${payer.name}</strong></p>
+                    <p class="expense-by">Payé par <strong>${payerName}</strong></p>
                     <p style="font-size: 0.85rem; color: #7f8c8d; margin: 0.25rem 0 0 0;">Pour: ${participantNames}</p>
                 </div>
                 <div style="display: flex; gap: 1rem; align-items: center;">
@@ -1037,20 +1072,21 @@ class CampingApp {
         const count = camp.participants.length;
         document.getElementById('equipmentPersonCount').textContent = count;
 
-        // Récupérer les items assignés de l'inventaire
+        // Construire la liste d'équipement à partir de l'inventaire assigné (en mémoire uniquement)
         const assignedItems = camp.inventory.filter(item => item.assignedTo.length > 0);
+        const customItems = (camp.equipment || []).filter(e => e.id && e.id.startsWith('custom_'));
 
-        // Vider l'équipement actuel et le remplacer par les items assignés
-        // La quantité = nombre de personnes qui l'ont assigné
-        camp.equipment = assignedItems.map((item, idx) => ({
-            id: item.id,
-            name: item.name,
-            qty: item.assignedTo.length,
-            assignedTo: item.assignedTo,
-            checked: false
-        }));
+        camp.equipment = [
+            ...assignedItems.map(item => ({
+                id: item.id,
+                name: item.name,
+                qty: item.assignedTo.length,
+                assignedTo: item.assignedTo,
+                checked: false
+            })),
+            ...customItems
+        ];
 
-        this.saveCamp(camp.id);
         this.renderEquipmentChecklist();
     }
 
@@ -1304,7 +1340,9 @@ class CampingApp {
 
         camp.cars.forEach(car => {
             const driver = camp.participants.find(p => p.id === car.driverId);
-            const totalWeight = car.items.reduce((sum, item) => sum + item.weight, 0);
+            const driverName = driver ? driver.name : 'Chauffeur inconnu';
+            const carItems = car.items || [];
+            const totalWeight = carItems.reduce((sum, item) => sum + (item.weight || 0), 0);
             const percentage = (totalWeight / car.capacity) * 100;
             const isFull = percentage >= 100;
 
@@ -1313,7 +1351,7 @@ class CampingApp {
             div.innerHTML = `
                 <div class="car-header">
                     <div class="car-title">
-                        <h4>🚗 ${driver.name}</h4>
+                        <h4>🚗 ${driverName}</h4>
                         <p class="car-model">${car.model}</p>
                     </div>
                     <button class="car-delete" onclick="app.removeCar('${car.id}')">Supprimer</button>
