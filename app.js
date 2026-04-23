@@ -21,6 +21,9 @@ class CampingApp {
                 this.camps = Object.values(data);
                 // Normaliser les données: s'assurer que l'inventaire a assignedTo et que expenses existe
                 this.camps.forEach(camp => {
+                    if (!camp.participants) {
+                        camp.participants = [];
+                    }
                     if (camp.inventory && Array.isArray(camp.inventory)) {
                         camp.inventory.forEach(item => {
                             if (!item.assignedTo) {
@@ -1007,6 +1010,7 @@ class CampingApp {
             id: item.id,
             name: item.name,
             qty: item.assignedTo.length,
+            assignedTo: item.assignedTo,
             checked: false
         }));
 
@@ -1025,10 +1029,30 @@ class CampingApp {
             const div = document.createElement('div');
             div.className = 'checklist-item';
             const checked = item.checked ? 'checked' : '';
+
+            // Group participant assignments by name
+            let participantNames = '';
+            if (item.assignedTo && item.assignedTo.length > 0) {
+                const assignmentGrouped = {};
+                item.assignedTo.forEach(participantId => {
+                    const participant = camp.participants.find(p => p.id === participantId);
+                    if (participant) {
+                        if (!assignmentGrouped[participant.name]) {
+                            assignmentGrouped[participant.name] = 0;
+                        }
+                        assignmentGrouped[participant.name]++;
+                    }
+                });
+                const groupedNames = Object.entries(assignmentGrouped)
+                    .map(([name, count]) => `${name}${count > 1 ? ` ×${count}` : ''}`)
+                    .join(', ');
+                participantNames = groupedNames ? ` (ramené par ${groupedNames})` : '';
+            }
+
             div.innerHTML = `
                 <input type="checkbox" id="eq_${item.id}" ${checked} onchange="app.toggleEquipment('${item.id}')">
                 <label for="eq_${item.id}">
-                    <span>${item.name}</span>
+                    <span>${item.name}${participantNames}</span>
                     <span class="item-qty">x${item.qty}</span>
                 </label>
             `;
@@ -1113,6 +1137,10 @@ class CampingApp {
     updateFoodChecklists() {
         const camp = this.getCurrentCamp();
         if (!camp) return;
+
+        if (!camp.food) {
+            camp.food = [];
+        }
 
         const count = camp.participants.length;
         document.getElementById('foodPersonCount').textContent = count;
