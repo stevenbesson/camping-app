@@ -346,13 +346,17 @@ class CampingApp {
         this.currentCampId = campId;
         const camp = this.getCurrentCamp();
 
-        document.getElementById('campTitle').textContent = `${camp.name}`;
+        if (!camp) return;
+
+        document.getElementById('campTitle').textContent = `${camp.name || ''}`;
         const startDate = new Date(camp.startDate).toLocaleDateString('fr-FR');
         const endDate = new Date(camp.endDate).toLocaleDateString('fr-FR');
-        document.getElementById('campDates').textContent = `${startDate} - ${endDate} • ${camp.location}`;
+        document.getElementById('campDates').textContent = `${startDate} - ${endDate} • ${camp.location || ''}`;
 
         document.getElementById('emptyState').classList.add('hidden');
         document.getElementById('mainContent').classList.remove('hidden');
+
+        let needsSave = false;
 
         // Initialiser l'inventaire s'il n'existe pas
         if (!camp.inventory || camp.inventory.length === 0) {
@@ -362,10 +366,40 @@ class CampingApp {
                 assignedTo: [],
                 status: 'unassigned'
             }));
+            needsSave = true;
+        }
+
+        // Initialiser les autres propriétés si elles n'existent pas
+        if (!camp.cars) {
+            camp.cars = [];
+            needsSave = true;
+        }
+
+        if (!camp.expenses) {
+            camp.expenses = [];
+            needsSave = true;
+        }
+
+        if (!camp.participants) {
+            camp.participants = [];
+            needsSave = true;
+        }
+
+        if (!camp.food) {
+            camp.food = [];
+            needsSave = true;
+        }
+
+        if (!camp.equipment) {
+            camp.equipment = [];
+            needsSave = true;
+        }
+
+        if (needsSave) {
             this.saveCamp(campId);
         }
 
-        document.getElementById('campCode').value = camp.code;
+        document.getElementById('campCode').value = camp.code || '';
         this.renderInventory();
         this.updateEquipmentChecklists();
         this.updateFoodChecklists();
