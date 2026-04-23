@@ -1145,21 +1145,6 @@ class CampingApp {
         const count = camp.participants.length;
         document.getElementById('foodPersonCount').textContent = count;
 
-        const food = this.getFoodByPersonCount(count);
-
-        food.forEach(item => {
-            let existingId = camp.food.find(e => e.name === item.name)?.id;
-            if (!existingId) {
-                existingId = 'food_' + Date.now() + Math.random();
-                camp.food.push({
-                    id: existingId,
-                    name: item.name,
-                    qty: item.qty,
-                    checked: false
-                });
-            }
-        });
-
         this.renderFoodChecklist();
     }
 
