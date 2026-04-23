@@ -205,6 +205,7 @@ class CampingApp {
 
         this.closeJoinCampModal();
         this.selectCamp(camp.id);
+        this.switchTab('participants');
     }
 
     goToParticipantsStep() {
