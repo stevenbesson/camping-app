@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampOrganizer - Organisez vos campings entre potes</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDummy&libraries=places"></script>
+    <script type="module" src="app.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1>🏕️ CampOrganizer</h1>
+                <p>Organisez vos campings en groupe facilement</p>
+            </div>
+            <div class="header-actions">
+                <button id="newCampBtn" class="btn btn-primary">+ Nouveau Camping</button>
+                <button id="joinCampBtn" class="btn btn-secondary">Rejoindre</button>
+                <select id="campSelect" class="camp-select" style="display: none;">
+                    <option value="">Sélectionner un camping...</option>
+                </select>
+            </div>
+        </header>
+
+        <!-- Modal Nouveau Camping - Step 1 -->
+        <div id="newCampModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Créer un nouveau camping</h2>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Nom du camping</label>
+                        <input type="text" id="campName" placeholder="Ex: Camping Lac Bleu">
+                    </div>
+                    <div class="form-group">
+                        <label>Destination</label>
+                        <input type="text" id="campLocation" placeholder="Ex: Annecy, France">
+                    </div>
+                    <div class="form-group">
+                        <label>Date de départ</label>
+                        <input type="date" id="campStartDate">
+                    </div>
+                    <div class="form-group">
+                        <label>Date de retour</label>
+                        <input type="date" id="campEndDate">
+                    </div>
+                    <div class="form-group">
+                        <label>Combien vous êtes? (nombre de personnes)</label>
+                        <input type="number" id="campPersonCount" placeholder="Ex: 5" min="1">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="cancelCampBtn">Annuler</button>
+                    <button class="btn btn-primary" id="nextCampBtn">Suivant</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Ajouter les prénoms -->
+        <div id="participantsModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Entrez vos prénoms</h2>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p id="participantsInstruction" style="margin-bottom: 1.5rem; color: #95a5a6;"></p>
+                    <div id="participantsInputs"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="backParticipantsBtn">Retour</button>
+                    <button class="btn btn-primary" id="finishCampBtn">Créer le camping</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Rejoindre un camping -->
+        <div id="joinCampModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Rejoindre un camping</h2>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p style="margin-bottom: 1.5rem; color: #95a5a6;">Entre le code de partage pour rejoindre un camping</p>
+                    <div class="form-group">
+                        <label>Code de partage</label>
+                        <input type="text" id="joinCampCode" placeholder="Ex: AB12CD" maxlength="6" style="text-transform: uppercase; font-size: 1.2rem; letter-spacing: 2px; text-align: center;">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="cancelJoinBtn">Annuler</button>
+                    <button class="btn btn-primary" id="confirmJoinBtn">Rejoindre</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main id="mainContent" class="main-content hidden">
+            <div class="camp-header">
+                <div class="camp-info">
+                    <h2 id="campTitle"></h2>
+                    <p id="campDates" class="camp-dates"></p>
+                </div>
+                <button id="deleteCampBtn" class="btn btn-danger-small">Supprimer ce camping</button>
+            </div>
+
+            <!-- Tabs Navigation -->
+            <nav class="tabs-nav">
+                <button class="tab-btn active" data-tab="participants">👥 Participants</button>
+                <button class="tab-btn" data-tab="inventory">📦 Inventaire Commun</button>
+                <button class="tab-btn" data-tab="expenses">💰 Dépenses</button>
+                <button class="tab-btn" data-tab="equipment">🎒 Matériel</button>
+                <button class="tab-btn" data-tab="food">🍜 Nourriture</button>
+                <button class="tab-btn" data-tab="cars">🚗 Voitures</button>
+                <button class="tab-btn" data-tab="route">🗺️ Trajet</button>
+            </nav>
+
+            <!-- INVENTAIRE COMMUN TAB -->
+            <div id="inventory" class="tab-content">
+                <div class="section">
+                    <h3>📦 Inventaire Commun</h3>
+                    <p class="hint">Le pot commun de matériel - qui apporte quoi?</p>
+
+                    <div class="inventory-filters" style="margin: 1.5rem 0;">
+                        <button class="inventory-filter-btn active" onclick="app.filterInventory('all')">Tous</button>
+                        <button class="inventory-filter-btn" onclick="app.filterInventory('unassigned')">À assigner</button>
+                        <button class="inventory-filter-btn" onclick="app.filterInventory('assigned')">Assignés</button>
+                    </div>
+
+                    <div id="inventoryList" class="inventory-grid"></div>
+                </div>
+            </div>
+
+            <!-- PARTICIPANTS TAB -->
+            <div id="participants" class="tab-content active">
+                <div class="section">
+                    <h3>📢 Partager avec tes potes</h3>
+                    <div class="share-box">
+                        <h4>Envoie ce code à tes amis</h4>
+                        <div class="share-code-box">
+                            <input type="text" id="campCode" class="camp-code-input" readonly>
+                            <button id="copyCodeBtn" class="btn btn-primary">Copier</button>
+                        </div>
+                        <p style="color: #95a5a6; font-size: 0.9rem; margin-top: 0.5rem;">Tes potes pourront rejoindre et voir l'inventaire commun!</p>
+                    </div>
+
+                    <hr style="margin: 2rem 0; border: 1px solid #ecf0f1;">
+
+                    <h3>Participants</h3>
+                    <div id="participantsList" class="participants-grid"></div>
+
+                    <hr style="margin: 2rem 0; border: 1px solid #ecf0f1;">
+
+                    <h3>Ajouter un nouveau participant</h3>
+                    <div class="form-row">
+                        <input type="text" id="newParticipantName" placeholder="Nom du participant" class="input-field">
+                        <select id="newParticipantRole" class="input-field">
+                            <option value="participant">Participant</option>
+                            <option value="driver">Chauffeur</option>
+                        </select>
+                        <button id="addParticipantBtn" class="btn btn-primary">Ajouter</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EXPENSES TAB -->
+            <div id="expenses" class="tab-content">
+                <div class="section">
+                    <h3>Ajouter une dépense</h3>
+                    <div class="form-row">
+                        <input type="text" id="expenseDescription" placeholder="Description" class="input-field">
+                        <input type="number" id="expenseAmount" placeholder="Montant (€)" step="0.01" class="input-field">
+                        <select id="expensePaidBy" class="input-field">
+                            <option value="">Payé par...</option>
+                        </select>
+                        <button id="addExpenseBtn" class="btn btn-primary">Ajouter dépense</button>
+                    </div>
+
+                    <div class="expenses-summary">
+                        <h4>Résumé des dépenses</h4>
+                        <div id="expensesList" class="expenses-list"></div>
+                        <div class="settlement-box">
+                            <h4>À qui doit rembourser qui?</h4>
+                            <div id="settlementList"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EQUIPMENT TAB -->
+            <div id="equipment" class="tab-content">
+                <div class="section">
+                    <h3>Checklist Matériel</h3>
+                    <p class="hint">Ajustée pour <strong id="equipmentPersonCount">0</strong> personnes</p>
+                    <div id="equipmentList" class="checklist"></div>
+                    <button id="customEquipmentBtn" class="btn btn-secondary">+ Ajouter un article perso</button>
+                    <div id="customEquipmentForm" class="custom-form hidden">
+                        <input type="text" id="customEquipmentName" placeholder="Nom de l'article">
+                        <input type="number" id="customEquipmentQty" placeholder="Quantité" min="1" value="1">
+                        <button id="addCustomEquipmentBtn" class="btn btn-primary btn-small">Ajouter</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FOOD TAB -->
+            <div id="food" class="tab-content">
+                <div class="section">
+                    <h3>Checklist Nourriture</h3>
+                    <p class="hint">Prévisions pour <strong id="foodPersonCount">0</strong> personnes</p>
+                    <div id="foodList" class="checklist"></div>
+                    <button id="customFoodBtn" class="btn btn-secondary">+ Ajouter un aliment perso</button>
+                    <div id="customFoodForm" class="custom-form hidden">
+                        <input type="text" id="customFoodName" placeholder="Nom de l'aliment">
+                        <input type="text" id="customFoodQty" placeholder="Quantité (ex: 2kg, 3 boîtes)">
+                        <button id="addCustomFoodBtn" class="btn btn-primary btn-small">Ajouter</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARS TAB -->
+            <div id="cars" class="tab-content">
+                <div class="section">
+                    <h3>Répartition des voitures</h3>
+                    <div class="cars-management">
+                        <div class="add-car-form">
+                            <h4>Ajouter une voiture</h4>
+                            <div class="form-row">
+                                <select id="carDriver" class="input-field">
+                                    <option value="">Chauffeur...</option>
+                                </select>
+                                <input type="text" id="carModel" placeholder="Modèle (ex: Renault Scenic)" class="input-field">
+                                <input type="number" id="carCapacity" placeholder="Capacité (L)" step="1" class="input-field">
+                                <button id="addCarBtn" class="btn btn-primary">Ajouter</button>
+                            </div>
+                        </div>
+                        <div id="carsList" class="cars-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ROUTE TAB -->
+            <div id="route" class="tab-content">
+                <div class="section">
+                    <h3>Trajet et point de rendez-vous</h3>
+                    <div class="route-form">
+                        <div class="form-group">
+                            <label>Point de rendez-vous</label>
+                            <input type="text" id="meetingLocation" placeholder="Ex: Station RER, Parking Carrefour" class="input-field full-width">
+                        </div>
+                        <div class="form-group">
+                            <label>Heure de départ</label>
+                            <input type="datetime-local" id="departureTime" class="input-field">
+                        </div>
+                        <div class="form-group">
+                            <label>Destination du camping</label>
+                            <input type="text" id="campDestination" placeholder="Ex: Lac d'Annecy" class="input-field full-width">
+                        </div>
+                        <button id="calculateRouteBtn" class="btn btn-primary">Calculer le trajet</button>
+                    </div>
+                    <div id="routeInfo" class="route-info hidden">
+                        <h4>Informations du trajet</h4>
+                        <p><strong>Distance:</strong> <span id="routeDistance">-</span></p>
+                        <p><strong>Durée estimée:</strong> <span id="routeDuration">-</span></p>
+                        <div id="map" class="map-container"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state">
+            <h2>Aucun camping créé</h2>
+            <p>Commencez par créer votre premier camping!</p>
+        </div>
+    </div>
+
+</body>
+</html>
